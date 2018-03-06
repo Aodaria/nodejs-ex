@@ -1,0 +1,48 @@
+<html>
+  <head>
+    <link rel="stylesheet" href="//fonts.googleapis.com/css?family=Roboto:300,300italic,700,700italic">
+    <link rel="stylesheet" href="//cdn.rawgit.com/necolas/normalize.css/master/normalize.css">
+    <link rel="stylesheet" href="../css/milligram.css">
+    <link rel="stylesheet" href="../css/main.css">
+    <meta charset="UTF-8">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="http://code.jquery.com/jquery-1.10.1.min.js"></script> 
+    <script src="../js/display.js"></script> 
+
+  </head>
+  <body>
+    <div class="mainContainer">
+      <form class="annotationBox">
+        <fieldset>
+          <!--label for="nameField">Name</label>
+          <input placeholder="CJ Patoilo" id="nameField" type="text"-->
+          
+          <div id="main" class="titleSentence">Ce discours est-il sexiste ?</div>
+          <div id="textToAnno">Prêt ?</div>
+          <div class="centerBtn">
+            <a class="button" id="sexist" href="javascript: void(0)">Sexiste</a>
+            <a class="button" id="notSexist" href="javascript: void(0)">Pas sexiste</a>
+          </div>
+          <div class="dropDown hidden" id="hiddenDrop">
+            <label for="reasonField">Type de sexisme</label>
+            <select id="reasonField">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+            </select>
+          </div>
+          <!--div class="float-right">
+            <input id="confirmField" type="checkbox">
+            <label class="label-inline" for="confirmField">Send a copy to yourself</label>
+          </div-->
+          <div class="sides">
+            <a class="button button-outline" href="javascript: void(0)">Abandonner</a>
+            <a class="button notActive" id="nextButton" href="#">Suivant</a>
+          </div>
+          <input class="button" value="Soumettre" type="submit">
+        </fieldset>
+      </form>
+    </div>
+  </body>
+</html>

@@ -1,108 +1,118 @@
-//  OpenShift sample Node application
-var express = require('express'),
-    app     = express(),
-    morgan  = require('morgan');
+var http = require("http");
+var fs = require("fs");
+var express = require("express");
+var path = require('path');
+var app = express();
+var server = require('http').createServer(app);
+var io = require('socket.io')(server);
+var Ddos = require('ddos')
+var parse = require('csv-parse');
+var ddos = new Ddos;
+var session = require('cookie-session');
+app.use(ddos.express);
+
+//######################## Variables ########################
+var listen_port = 8080;
+var serverUrl = "127.0.0.1";
+var csvFile = "Corpus/corpus.csv";
+var corpus=[];
+var valeur = 0;
+
+//######################## Init ########################
+
+getCorpus();
+
+app.use(session({
+    cookieName: 'Annotation',
+    secret: 'turlututuchapeaupointu ',
+    duration: 30 * 60 * 1000,
+    activeDuration: 5 * 60 * 1000
+}));
+//######################## App.get ########################
+
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get("/", function(err, res){
+    var sess = err.session;
+    sess.genre = "";
+    sess.val = 0;
+    var d = new Date();
+    sess.nom = d.getTime();
     
-Object.assign=require('object-assign')
+    fs.readFile(__dirname + '/public/views/before.html', function(err, data){
+        res.write(data);
+        res.end();
+    })
+    //fs.createReadStream(__dirname + '/public/annotate.html', 'utf8').pipe(res);
+});
 
-app.engine('html', require('ejs').renderFile);
-app.use(morgan('combined'))
+app.get("/gender", function(err, res){
+    var sess = err.session;
+    fs.readFile(__dirname + '/public/views/gender.html', function(err, data){
+        res.write(data);
+        res.end();
+    })
+    //fs.createReadStream(__dirname + '/public/annotate.html', 'utf8').pipe(res);
+});
 
-var port = process.env.PORT || process.env.OPENSHIFT_NODEJS_PORT || 8080,
-    ip   = process.env.IP   || process.env.OPENSHIFT_NODEJS_IP || '0.0.0.0',
-    mongoURL = process.env.OPENSHIFT_MONGODB_DB_URL || process.env.MONGO_URL,
-    mongoURLLabel = "";
+app.get("/annotate", function(err, res){
+    var sess = err.session;
+    fs.readFile(__dirname + '/public/views/annotate.html', function(err, data){
+        res.write(data);
+        res.end();
+    })
+    //fs.createReadStream(__dirname + '/public/annotate.html', 'utf8').pipe(res);
+});
 
-if (mongoURL == null && process.env.DATABASE_SERVICE_NAME) {
-  var mongoServiceName = process.env.DATABASE_SERVICE_NAME.toUpperCase(),
-      mongoHost = process.env[mongoServiceName + '_SERVICE_HOST'],
-      mongoPort = process.env[mongoServiceName + '_SERVICE_PORT'],
-      mongoDatabase = process.env[mongoServiceName + '_DATABASE'],
-      mongoPassword = process.env[mongoServiceName + '_PASSWORD']
-      mongoUser = process.env[mongoServiceName + '_USER'];
-
-  if (mongoHost && mongoPort && mongoDatabase) {
-    mongoURLLabel = mongoURL = 'mongodb://';
-    if (mongoUser && mongoPassword) {
-      mongoURL += mongoUser + ':' + mongoPassword + '@';
+/*var app = http.createServer(function(req, res){
+    console.log('request for ' + req.url);
+    if (req.url === '/' || req.url === '/login'){
+        res.writeHead(200, {'Content-Type' : 'text/html'});
+        fs.createReadStream(__dirname + '/annotate.html', 'utf8').pipe(res);
     }
-    // Provide UI label that excludes user id and pw
-    mongoURLLabel += mongoHost + ':' + mongoPort + '/' + mongoDatabase;
-    mongoURL += mongoHost + ':' +  mongoPort + '/' + mongoDatabase;
+    else if (req.url === '/annotation'){
+        res.writeHead(200, {'Content-Type' : 'text/html'});
+        var myStream = fs.createReadStream(__dirname + '/annotate.html', 'utf8');
+        myStream.pipe(res);
+    }
+    else{
+        res.writeHead(404, {'Content-Type' : 'text/html'});
+        var myStream = fs.createReadStream(__dirname + '/404.html', 'utf8');
+        myStream.pipe(res);   
+    }
+});
+*/
+//######################## Socket ########################
 
-  }
+io.sockets.on("connection", function(socket){
+    console.log('[*] Client connected');
+    console.log(socket.handshake.time);
+    console.log(socket.handshake.address);
+    
+    socket.on('nouvelleAnnotation', function(annotation){
+        
+       valeur = JSON.parse(annotation);
+       var val_id = valeur.id;
+       var val_sexist = valeur.sexist;
+       console.log(val_id, val_sexist);
+       console.log(corpus[val_id + 1]);
+       socket.emit('entree', JSON.stringify({ id: val_id + 1, txt: corpus[val_id + 1][1] }));
+    });
+    
+});
+
+//######################## Fonctions ########################
+
+function getCorpus(){
+    fs.createReadStream(csvFile).pipe(parse({delimiter: ';'})).on('data', function(csvrow) {        
+            corpus.push(csvrow);        
+        })
+        .on('end',function() {
+            console.log('[OK] Corpus loaded');
+    });
 }
-var db = null,
-    dbDetails = new Object();
 
-var initDb = function(callback) {
-  if (mongoURL == null) return;
 
-  var mongodb = require('mongodb');
-  if (mongodb == null) return;
-
-  mongodb.connect(mongoURL, function(err, conn) {
-    if (err) {
-      callback(err);
-      return;
-    }
-
-    db = conn;
-    dbDetails.databaseName = db.databaseName;
-    dbDetails.url = mongoURLLabel;
-    dbDetails.type = 'MongoDB';
-
-    console.log('Connected to MongoDB at: %s', mongoURL);
-  });
-};
-
-app.get('/', function (req, res) {
-  // try to initialize the db on every request if it's not already
-  // initialized.
-  if (!db) {
-    initDb(function(err){});
-  }
-  if (db) {
-    var col = db.collection('counts');
-    // Create a document with request IP and current time of request
-    col.insert({ip: req.ip, date: Date.now()});
-    col.count(function(err, count){
-      if (err) {
-        console.log('Error running count. Message:\n'+err);
-      }
-      res.render('index.html', { pageCountMessage : count, dbInfo: dbDetails });
-    });
-  } else {
-    res.render('index.html', { pageCountMessage : null});
-  }
-});
-
-app.get('/pagecount', function (req, res) {
-  // try to initialize the db on every request if it's not already
-  // initialized.
-  if (!db) {
-    initDb(function(err){});
-  }
-  if (db) {
-    db.collection('counts').count(function(err, count ){
-      res.send('{ pageCount: ' + count + '}');
-    });
-  } else {
-    res.send('{ pageCount: -1 }');
-  }
-});
-
-// error handling
-app.use(function(err, req, res, next){
-  console.error(err.stack);
-  res.status(500).send('Something bad happened!');
-});
-
-initDb(function(err){
-  console.log('Error connecting to Mongo. Message:\n'+err);
-});
-
-app.listen(port, ip);
-console.log('Server running on http://%s:%s', ip, port);
-
-module.exports = app ;
+//######################## Run ########################
+server.listen(listen_port, serverUrl);
+console.log('[*] App running at http://' + serverUrl + ':'+ listen_port+'/');
